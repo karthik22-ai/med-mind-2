@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS # Import CORS
 from firebase_admin import credentials, initialize_app, firestore, storage
 from google.cloud import vision
+from google.oauth2 import service_account # Import service_account for Vision credentials
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ CORS(app) # Initialize CORS with your Flask app. By default, this allows all ori
 # --- Firebase Initialization ---
 # Attempt to load Firebase credentials from an environment variable containing the JSON content
 FIREBASE_SERVICE_ACCOUNT_KEY_JSON = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY_JSON')
+cred_dict = None # Initialize cred_dict to None
 
 if FIREBASE_SERVICE_ACCOUNT_KEY_JSON:
     try:
@@ -28,18 +30,18 @@ if FIREBASE_SERVICE_ACCOUNT_KEY_JSON:
         print("Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_KEY_JSON.")
     except json.JSONDecodeError as e:
         print(f"Error decoding FIREBASE_SERVICE_ACCOUNT_KEY_JSON: {e}")
-        print("Falling back to ApplicationDefault credentials.")
+        print("Falling back to ApplicationDefault credentials for Firebase.")
         cred = credentials.ApplicationDefault()
     except Exception as e:
         print(f"Error initializing Firebase Certificate from JSON: {e}")
-        print("Falling back to ApplicationDefault credentials.")
+        print("Falling back to ApplicationDefault credentials for Firebase.")
         cred = credentials.ApplicationDefault()
 else:
     print("FIREBASE_SERVICE_ACCOUNT_KEY_JSON not found. Attempting default Firebase initialization (for Google Cloud environments).")
     try:
         cred = credentials.ApplicationDefault()
     except Exception as e:
-        print(f"Failed to get ApplicationDefault credentials: {e}")
+        print(f"Failed to get ApplicationDefault credentials for Firebase: {e}")
         print("Please ensure GOOGLE_APPLICATION_CREDENTIALS is set or FIREBASE_SERVICE_ACCOUNT_KEY_JSON is provided.")
 
 # Initialize Firebase App
@@ -52,7 +54,21 @@ db = firestore.client()
 bucket = storage.bucket()
 
 # --- Google Cloud Vision Initialization ---
-vision_client = vision.ImageAnnotatorClient()
+# Create credentials for Vision API using the same service account key JSON
+vision_credentials = None
+if cred_dict: # Use cred_dict if it was successfully loaded from the environment variable
+    try:
+        vision_credentials = service_account.Credentials.from_service_account_info(cred_dict)
+        print("Google Cloud Vision credentials loaded from service account info.")
+    except Exception as e:
+        print(f"Error creating Vision credentials from service account info: {e}")
+        print("Vision API might fail if running outside Google Cloud without proper ADC.")
+else:
+    print("No service account JSON for Vision API. Vision API will attempt Application Default Credentials.")
+
+# Pass the explicit credentials to the Vision client
+vision_client = vision.ImageAnnotatorClient(credentials=vision_credentials)
+
 
 # --- Gemini API Configuration ---
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -444,6 +460,7 @@ def get_analytics():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
