@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 import io
 import mimetypes
 from datetime import datetime
-import json # Import json module
-from flask_cors import CORS # Import CORS
+import json
+from flask_cors import CORS
 
-# Load environment variables from .env file
+# Load environment variables from .env file (for local development)
 load_dotenv()
 
 app = Flask(__name__)
@@ -21,8 +21,9 @@ CORS(app)
 
 # --- Firebase Initialization ---
 # Prioritize loading credentials from an environment variable (for Render deployment)
-FIREBASE_SERVICE_ACCOUNT_KEY_JSON = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY_JSON') # Renamed for clarity
+FIREBASE_SERVICE_ACCOUNT_KEY_JSON = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY_JSON')
 
+cred = None # Initialize cred to None
 if FIREBASE_SERVICE_ACCOUNT_KEY_JSON:
     try:
         # Parse the JSON string from the environment variable
@@ -49,6 +50,11 @@ else:
             print("Please ensure GOOGLE_APPLICATION_CREDENTIALS is set or Firebase credentials are provided via environment variable/file path.")
             exit(1) # Exit if no credentials can be found
 
+# Ensure credentials were successfully loaded before initializing Firebase app
+if cred is None:
+    print("FATAL: No Firebase credentials could be loaded. Exiting.")
+    exit(1)
+
 firebase_app = initialize_app(cred, {
     'projectId': os.getenv('FIREBASE_PROJECT_ID'),
     'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET')
@@ -58,11 +64,8 @@ db = firestore.client()
 bucket = storage.bucket()
 
 # --- Google Cloud Vision Initialization ---
-# The Vision client will automatically use GOOGLE_APPLICATION_CREDENTIALS
-# or other standard authentication methods if deployed on Google Cloud.
-# For local development, ensure GOOGLE_APPLICATION_CREDENTIALS is set
-# to your service account key file.
-vision_client = vision.ImageAnnotatorClient()
+# Explicitly pass the loaded credentials to the Vision client
+vision_client = vision.ImageAnnotatorClient(credentials=cred) # <--- FIX IS HERE
 
 # --- Gemini API Configuration ---
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -434,6 +437,7 @@ def get_analytics():
 if __name__ == '__main__':
     # For local development, run on port 5000
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
