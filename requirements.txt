@@ -1,7 +1,7 @@
-Flask
-firebase-admin
-google-cloud-vision
-google-generativeai
-flask-cors
-python-dotenv
-gunicorn
+Flask>=2.3.0
+firebase-admin>=6.0.0
+google-cloud-vision>=3.0.0
+google-generativeai>=0.3.0
+flask-cors>=4.0.0
+python-dotenv>=1.0.0
+gunicorn>=21.0.0
